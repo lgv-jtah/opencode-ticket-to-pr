@@ -1,6 +1,7 @@
 ---
 description: Read-only. Turns a ticket brief into a concrete implementation plan grounded in the existing codebase
 mode: subagent
+model: github-copilot/claude-opus-5.5
 temperature: 0.1
 steps: 20
 permission:

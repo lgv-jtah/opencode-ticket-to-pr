@@ -1,6 +1,7 @@
 ---
 description: Read-only senior review of the branch diff against plan and acceptance criteria; runs the checks and returns PASS or FAIL with actionable findings
 mode: subagent
+model: github-copilot/claude-opus-5.5
 temperature: 0
 steps: 25
 permission:
