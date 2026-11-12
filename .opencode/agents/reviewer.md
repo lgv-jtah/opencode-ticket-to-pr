@@ -75,6 +75,20 @@ Only this round's findings; do not repeat issues that are already fixed.
 
 On PASS, one short paragraph on what you verified.
 
+Then Side findings, in both cases.
+
+## Side findings
+Report bugs you notice outside the ticket's scope: wrong behaviour,
+pre-existing failing tests, security issues. Not style or refactoring wishes,
+and only with evidence (code you read, output you saw) - never speculation.
+Code outside the diff is never a reason for REVIEW FAIL; report its bugs here.
+Put this section right before the last line, one entry per bug:
+```
+## Side findings
+- <short bug title> | <file>:<line> | <what is wrong; evidence or how to reproduce>
+```
+If there are none, write `## Side findings` followed by `none`.
+
 End your final message with exactly one of these lines:
 
 REVIEW PASS

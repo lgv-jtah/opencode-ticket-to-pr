@@ -14,9 +14,10 @@ orchestrator (primary)                          subagents
   6 ------------------------------------------> reviewer     (read-only, runs checks)
       FAIL -> implementer -> reviewer, max 3 rounds
   7 git commit (Conventional Commit, Refs KEY)
-  8 git push -u origin <branch>                 [approval]
-  9 pr_create (GitHub or Bitbucket)             [approval]
- 10 jira_transition -> review, jira_comment PR  [approval]
+  8 side findings -> you pick -> Bug tickets    [approval]
+  9 git push -u origin <branch>                 [approval]
+ 10 pr_create (GitHub or Bitbucket)             [approval]
+ 11 jira_transition -> review, jira_comment PR  [approval]
 ```
 
 ## Layout
@@ -45,6 +46,7 @@ The Jira tools (`jira_get`, `jira_transition`, `jira_comment`, ...) live in the 
 - Subagents receive only what they need (brief, plan, findings, base commit), never the conversation history.
 - The review loop passes only the latest round's findings back to the implementer.
 - The branch is created from `origin/<base>` and the base commit is recorded, so the reviewer diffs exactly the change.
+- Bugs found outside the ticket's scope are never fixed in the branch: planner, implementer and reviewer report them as side findings, you pick which become Bug tickets (deduplicated via search, labelled `pipeline-finding`, linked to the ticket as "Relates"), and the PR lists them.
 - Everything that leaves the machine (push, PR, Jira writes) asks for approval.
 - The project-specific parts (base branch, check commands, Jira status) live in each project's `AGENTS.md`, so the same agents work for uv, Poetry and npm projects.
 

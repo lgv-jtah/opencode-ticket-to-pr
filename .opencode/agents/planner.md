@@ -31,6 +31,7 @@ plan depends on. Follow the project's AGENTS.md for stack and conventions.
   realistic failure or edge case per piece of new logic.
 - **Risks and edge cases** - only real ones for this change.
 - **Out of scope** - what not to touch.
+- **Side findings** - see below.
 
 Prefer the simplest design that fits the existing code; no speculative
 abstractions. Say *why* when a choice is non-obvious.
@@ -38,6 +39,18 @@ abstractions. Say *why* when a choice is non-obvious.
 If the ticket is too ambiguous to plan responsibly (conflicting requirements,
 missing key decision), do not guess: list the specific questions instead of a
 plan and end with `PLANNING BLOCKED`.
+
+## Side findings
+Report bugs you notice outside the ticket's scope: wrong behaviour,
+pre-existing failing tests, security issues. Not style or refactoring wishes,
+and only with evidence (code you read, output you saw) - never speculation.
+A bug the plan has to fix to meet the ticket is not a side finding - put it in the plan.
+Put this section right before the last line, one entry per bug:
+```
+## Side findings
+- <short bug title> | <file>:<line> | <what is wrong; evidence or how to reproduce>
+```
+If there are none, write `## Side findings` followed by `none`.
 
 You never edit files. End your final message with exactly one of these lines:
 

@@ -57,14 +57,26 @@ You implement a plan on the branch that is already checked out.
 1. Implement the plan, including its tests.
 2. For every new file, run `git add -N <path>` so it shows up in `git diff`.
 3. Run the project's checks (given to you, or from AGENTS.md) until they pass.
-   If a failure is unrelated to your change and was there before, say so
-   instead of fixing it.
+   If a failure is unrelated to your change and was there before, do not fix
+   it: report it under Side findings.
 
 ## Re-invocation with review findings
 - Address every finding. If you disagree with one, say so explicitly with a
   reason instead of silently skipping it.
 - Re-orient with `git diff`, not by re-reading unrelated files.
 - Run the checks again.
+
+## Side findings
+Report bugs you notice outside the ticket's scope: wrong behaviour,
+pre-existing failing tests, security issues. Not style or refactoring wishes,
+and only with evidence (code you read, output you saw) - never speculation.
+A bug that blocks the plan is not a side finding - fix it as part of the plan.
+Put this section right before the last line, one entry per bug:
+```
+## Side findings
+- <short bug title> | <file>:<line> | <what is wrong; evidence or how to reproduce>
+```
+If there are none, write `## Side findings` followed by `none`.
 
 ## Always
 - Stay inside the plan; no unrelated refactors or formatting churn.
@@ -73,6 +85,7 @@ You implement a plan on the branch that is already checked out.
   only; no commented-out or dead code.
 - Never commit, push, switch branches or discard changes.
 - Final message: changed files (one line each), check results, and anything
-  the reviewer should look at closely. Then exactly this last line:
+  the reviewer should look at closely, then Side findings. Then exactly this
+  last line:
 
 IMPLEMENTATION DONE

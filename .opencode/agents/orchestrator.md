@@ -8,6 +8,9 @@ permission:
   question: allow          # denied by default for custom agents
   "jira_*": deny
   jira_get: allow
+  jira_search: allow
+  jira_create: allow       # bug tickets for side findings; asks via "jira_write"
+  jira_link: allow         # the tool itself asks via "jira_write"
   jira_transition: allow   # the tool itself asks via "jira_write"
   jira_comment: allow      # the tool itself asks via "jira_write"
   pr_create: allow         # the tool itself asks via "pr_write"
@@ -87,6 +90,10 @@ If the section or the checks are missing, ask the user once with the
    `PLANNING BLOCKED`. On `PLANNING BLOCKED`, ask the user its questions with
    the `question` tool and re-invoke the planner with brief + answers.
 
+   From here on, collect every entry of the subagents' `## Side findings`
+   sections (bugs outside the ticket's scope) into one list, merging
+   duplicates. Never pass them on to the implementer to fix.
+
 5. **implementer** - pass the plan, the ticket brief's acceptance criteria and
    the checks. It must end with `IMPLEMENTATION DONE`.
 
@@ -108,35 +115,64 @@ If the section or the checks are missing, ask the user once with the
    - No AI attribution or Co-Authored-By trailers.
    - If a hook fails: report its output and stop. Never bypass hooks.
 
-8. **Push** - `git push -u origin <branch>` (the user approves it).
+8. **Bug tickets for side findings** (skip if the list is empty)
+   - Show the list, then ask with the `question` tool which findings to file
+     (all, none, or a selection). File only those.
+   - For each one, look for an existing ticket first:
+     `jira_search` with `project = <PROJECT> AND statusCategory != Done AND summary ~ "<2-4 key words>"`.
+     If one matches, reuse its key instead of creating a duplicate.
+   - Otherwise `jira_create` in the same project as the ticket: type `Bug`
+     (use `Task` if the project has no Bug type), label `pipeline-finding`,
+     summary = the finding's title, Markdown description:
+     ```
+     ## Problem
+     <what is wrong; evidence or steps to reproduce>
 
-9. **Pull request** - `pr_create` with `base` = base branch,
-   `title` = the commit header, and `body`:
-   ```
-   ## <KEY>: <ticket title>
-   <Jira browse URL from jira_get>
+     ## Where
+     <file:line>
 
-   ## Summary
-   <2-5 bullets: what changed and why>
+     Found while working on <KEY> (branch <branch>), out of that ticket's scope.
+     ```
+   - `jira_link` the new or reused ticket to the original with type `Relates`
+     (`from` = bug, `to` = <KEY>).
+   - A failed or declined creation is reported at the end; it never stops the
+     pipeline.
 
-   ## How it was verified
-   <checks that ran and passed; review rounds>
+9. **Push** - `git push -u origin <branch>` (the user approves it).
 
-   ## Notes
-   <trade-offs, follow-ups, or "none">
-   ```
+10. **Pull request** - `pr_create` with `base` = base branch,
+    `title` = the commit header, and `body`:
+    ```
+    ## <KEY>: <ticket title>
+    <Jira browse URL from jira_get>
 
-10. **Jira** - `jira_transition` the ticket to the review status. If that
+    ## Summary
+    <2-5 bullets: what changed and why>
+
+    ## How it was verified
+    <checks that ran and passed; review rounds>
+
+    ## Found along the way
+    <one line per side finding: bug ticket key + title, or "not filed: <title>";
+    omit the section if there were none>
+
+    ## Notes
+    <trade-offs, follow-ups, or "none">
+    ```
+
+11. **Jira** - `jira_transition` the ticket to the review status. If that
     status is not reachable, report the available transitions and continue.
     Then `jira_comment` with the PR link and the one-line summary.
 
-11. **Report** to the user: ticket, branch, review rounds, commit hash, PR URL,
-    Jira status.
+12. **Report** to the user: ticket, branch, review rounds, commit hash, PR URL,
+    Jira status, and the bug tickets created or reused (plus findings not
+    filed).
 
 ## Rules
 - Order is fixed; never skip review, never run a later step after a failure.
 - Pass subagents only what they need (brief, plan, findings, `BASE_SHA`), not
   conversation history.
+- Side findings are filed as tickets, never fixed in this branch.
 - If the user declines an approval (push, PR, Jira write), stop that step,
   say what was not done and what the user can run manually.
 - If anything fails irrecoverably, state which step failed and why.
