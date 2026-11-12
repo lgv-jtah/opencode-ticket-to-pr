@@ -32,6 +32,8 @@ orchestrator (primary)                          subagents
   lib/pr-core.mts          GitHub + Bitbucket REST client (no gh CLI needed)
   opencode.jsonc           pr_write: ask
 tests/pr-core.test.ts      unit tests for the PR client
+scripts/                   logic behind the Makefile targets
+Makefile                   entry point: make install / doctor / init / ticket
 ```
 
 The Jira tools (`jira_get`, `jira_transition`, `jira_comment`, ...) live in the global config at `~/.config/opencode/tools/jira.ts`.
@@ -46,38 +48,51 @@ The Jira tools (`jira_get`, `jira_transition`, `jira_comment`, ...) live in the 
 - Everything that leaves the machine (push, PR, Jira writes) asks for approval.
 - The project-specific parts (base branch, check commands, Jira status) live in each project's `AGENTS.md`, so the same agents work for uv, Poetry and npm projects.
 
-## Setup
+## Quick start
 
-1. Load the template in any project by pointing OpenCode at it, e.g. in `~/.bashrc`:
+```bash
+make install && source ~/.bashrc                         # load the template in every project
+make doctor                                              # check opencode, credentials, template
+make init PROJECT=~/projects/my-repo                     # add the Pipeline section to its AGENTS.md
+make ticket PROJECT=~/projects/my-repo TICKET=CHAT-42    # run the pipeline
+```
 
-   ```bash
-   export OPENCODE_CONFIG_DIR="$HOME/projects/PROGRAMMING_WORKFLOW/.opencode"
-   ```
+Run `make` to list all targets.
 
-   It is merged with the global config (`~/.config/opencode`) and the project's own `.opencode/`.
+| Target | What it does |
+| --- | --- |
+| `install` / `uninstall` | Adds or removes `export OPENCODE_CONFIG_DIR=<this template>` in `~/.bashrc` (`~/.zshrc` for zsh; `RC_FILE=...` to override). OpenCode merges it with the global config and the project's own `.opencode/`. |
+| `doctor` | Checks opencode, git, the global Jira tools, that the orchestrator loads with all its tools, and which credentials are set (never prints values). |
+| `init PROJECT=...` | Detects base branch and check commands (uv, Poetry, npm) and appends a `## Pipeline` section to the project's `AGENTS.md`. Never overwrites an existing section; `DRY_RUN=1` previews, `JIRA_REVIEW_STATUS=...` sets the Jira status. |
+| `ticket PROJECT=... TICKET=...` | Opens the OpenCode TUI in the project with the orchestrator running the ticket. Works without `install`. |
+| `test` | Runs the unit tests of the PR client. |
 
-2. Credentials, exported in the shell that starts OpenCode:
+### Credentials
 
-   | Variable | For |
-   | --- | --- |
-   | `JIRA_EMAIL`, `JIRA_API_TOKEN` | Jira tools |
-   | `GITHUB_TOKEN` (or `GH_TOKEN`) | GitHub PRs - fine-grained token, "Pull requests: read and write" |
-   | `BITBUCKET_EMAIL`, `BITBUCKET_API_TOKEN` | Bitbucket PRs - Atlassian API token with `read:pullrequest:bitbucket` and `write:pullrequest:bitbucket` |
+Export them in the shell that starts OpenCode:
 
-3. Add a `## Pipeline` section to the project's `AGENTS.md`:
+| Variable | For |
+| --- | --- |
+| `JIRA_EMAIL`, `JIRA_API_TOKEN` | Jira tools |
+| `GITHUB_TOKEN` (or `GH_TOKEN`) | GitHub PRs - fine-grained token, "Pull requests: read and write" |
+| `BITBUCKET_EMAIL`, `BITBUCKET_API_TOKEN` | Bitbucket PRs - Atlassian API token with `read:pullrequest:bitbucket` and `write:pullrequest:bitbucket` |
 
-   ```markdown
-   ## Pipeline
-   - Base branch: main
-   - Checks: `uv run pytest`, `uv run ruff check .`
-   - Jira review status: In Review
-   ```
+### Project settings
 
-   If it is missing, the orchestrator asks once instead of guessing.
+`make init` writes a section like this, which you can adjust by hand:
+
+```markdown
+## Pipeline
+- Base branch: main
+- Checks: `uv run pytest`, `uv run ruff check .`
+- Jira review status: In Review
+```
+
+If it is missing, the orchestrator asks once instead of guessing.
 
 ## Usage
 
-Start OpenCode in the project, switch to the `orchestrator` agent or simply run:
+`make ticket ...`, or inside OpenCode in any project:
 
 ```
 /ticket CHAT-42
@@ -89,6 +104,6 @@ If review still fails after 3 rounds, the pipeline stops and leaves the branch f
 ## Development
 
 ```bash
-node --test "tests/*.test.ts"
+make test
 opencode debug agent orchestrator   # show resolved tools and permissions
 ```
