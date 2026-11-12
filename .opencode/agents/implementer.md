@@ -1,6 +1,7 @@
 ---
 description: Implements a plan on the current branch and applies review findings when re-invoked; never commits
 mode: subagent
+model: github-copilot/claude-sonnet-5.5
 temperature: 0.2
 steps: 40
 permission:
