@@ -29,6 +29,7 @@ permission:
     "git remote get-url*": allow
     "git symbolic-ref refs/remotes/*": allow
     "git fetch origin*": allow
+    "git switch --detach origin/*": allow
     "git switch --no-track -c *": allow
     "git add *": allow
     "git commit -m *": allow
@@ -68,6 +69,12 @@ If the section or the checks are missing, ask the user once with the
    - `git status --porcelain` must be empty. If not, stop and list the
      changes; never stash, reset or commit them.
    - `git remote get-url origin` must be GitHub or Bitbucket.
+   - Note the current branch (`git branch --show-current`) as
+     `START_BRANCH`, then `git fetch origin <base>` and
+     `git switch --detach origin/<base>`, so planning sees the current base
+     code and no branch exists until there is a plan.
+   - If the pipeline stops before step 4, tell the user they are on a
+     detached HEAD and can return with `git switch <START_BRANCH>`.
 
 2. **Fetch the ticket** - `jira_get` with `comments: 5`. On error, report it
    verbatim and stop. Condense it into a ticket brief:
@@ -78,24 +85,30 @@ If the section or the checks are missing, ask the user once with the
    Relevant comments: <only those that change or clarify scope, or "none">
    ```
 
-3. **Create the branch**
-   - Name: `<type>/<KEY>-<short-kebab-description>` (max ~50 chars), type from
-     the issue: Bug -> `bugfix`, Story/Feature -> `feature`, Task -> `chore`,
-     label `hotfix` -> `hotfix`.
-   - `git fetch origin <base>`, then
-     `git switch --no-track -c <branch> origin/<base>`.
-   - Record `BASE_SHA` with `git rev-parse HEAD`.
-
-4. **planner** - pass the ticket brief. It ends with `PLANNING DONE` or
-   `PLANNING BLOCKED`. On `PLANNING BLOCKED`, ask the user its questions with
-   the `question` tool and re-invoke the planner with brief + answers.
+3. **planner** - pass the ticket brief. It ends with `PLANNING DONE` or
+   `PLANNING BLOCKED`.
+   - On `PLANNING BLOCKED`, ask the user its questions with the `question`
+     tool and re-invoke the planner with brief + answers. If the user wants
+     to stop instead (e.g. to fix the ticket first), stop.
+   - On `PLANNING DONE` with Assumptions other than `none`, show them to the
+     user and ask with the `question` tool: proceed, or correct them. On
+     corrections, re-invoke the planner with brief + corrections. With no
+     assumptions, proceed without asking.
 
    From here on, collect every entry of the subagents' `## Side findings`
    sections (bugs outside the ticket's scope) into one list, merging
    duplicates. Never pass them on to the implementer to fix.
 
-5. **implementer** - pass the plan, the ticket brief's acceptance criteria and
-   the checks. It must end with `IMPLEMENTATION DONE`.
+4. **Create the branch** (only once the plan is accepted)
+   - Name: `<type>/<KEY>-<short-kebab-description>` (max ~50 chars), type from
+     the issue: Bug -> `bugfix`, Story/Feature -> `feature`, Task -> `chore`,
+     label `hotfix` -> `hotfix`.
+   - `git switch --no-track -c <branch>` (starts at the detached
+     `origin/<base>` from step 1).
+   - Record `BASE_SHA` with `git rev-parse HEAD`.
+
+5. **implementer** - pass the plan (with the accepted assumptions), the ticket
+   brief's acceptance criteria and the checks. It must end with `IMPLEMENTATION DONE`.
 
 6. **reviewer** - pass the plan, the acceptance criteria, the checks and
    `BASE_SHA`. It ends with `REVIEW PASS` or `REVIEW FAIL`.

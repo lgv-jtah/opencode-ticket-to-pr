@@ -6,10 +6,12 @@ A small OpenCode template that takes a Jira ticket and ends with a reviewed pull
 /ticket CHAT-42
 
 orchestrator (primary)                          subagents
-  1 preflight: clean tree, known remote
+  1 preflight: clean tree, known remote, detach at origin/<base>
   2 jira_get -> ticket brief
-  3 branch <type>/<KEY>-<desc> off origin/<base>
-  4 ------------------------------------------> planner      (read-only)
+  3 ------------------------------------------> planner      (read-only)
+      readiness check: BLOCKED -> your answers
+      assumptions -> you confirm or correct
+  4 branch <type>/<KEY>-<desc> at origin/<base>
   5 ------------------------------------------> implementer  (edits, runs checks)
   6 ------------------------------------------> reviewer     (read-only, runs checks)
       FAIL -> implementer -> reviewer, max 3 rounds
@@ -52,7 +54,8 @@ The template is self-contained: cloning the repo and running `make install` give
 - Every agent has a minimal permission set; for bash the last matching rule wins, so narrow denies come last.
 - Subagents receive only what they need (brief, plan, findings, base commit), never the conversation history.
 - The review loop passes only the latest round's findings back to the implementer.
-- The branch is created from `origin/<base>` and the base commit is recorded, so the reviewer diffs exactly the change.
+- The planner checks the ticket against the code before planning: it blocks only when a wrong guess would be expensive, otherwise it decides and lists the decision as an assumption for you to confirm.
+- The branch is only created once the plan is accepted, at `origin/<base>`, and the base commit is recorded, so the reviewer diffs exactly the change.
 - Bugs found outside the ticket's scope are never fixed in the branch: planner, implementer and reviewer report them as side findings, you pick which become Bug tickets (deduplicated via search, labelled `pipeline-finding`, linked to the ticket as "Relates"), and the PR lists them.
 - Everything that leaves the machine (push, PR, Jira writes) asks for approval.
 - The project-specific parts (base branch, check commands, Jira status) live in each project's `AGENTS.md`, so the same agents work for uv, Poetry and npm projects.

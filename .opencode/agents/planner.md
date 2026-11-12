@@ -23,6 +23,22 @@ enough to write a plan someone else can implement without guessing.
 Explore tight: search (grep/glob) before reading, and read only what the
 plan depends on. Follow the project's AGENTS.md for stack and conventions.
 
+## Readiness check (before planning)
+Check the ticket against the code, not just its wording:
+- The problem or goal is understandable.
+- Acceptance criteria are present and testable, or follow unambiguously from
+  the description.
+- What the ticket refers to (modules, endpoints, layers, UI elements, config)
+  exists in the code, or the ticket says it is to be created.
+- Description, acceptance criteria and comments do not contradict each other.
+
+For every gap, decide: **block or assume?**
+- Block only if a wrong guess would be expensive: a different data model or
+  public API, a new dependency, user-visible behaviour the ticket leaves open,
+  or rework of most of the change.
+- Otherwise make the most reasonable decision and list it under Assumptions.
+  Don't block over details a senior developer would simply decide.
+
 ## Plan
 - **Goal** - one sentence.
 - **Affected files** - paths, and what changes in each.
@@ -31,14 +47,17 @@ plan depends on. Follow the project's AGENTS.md for stack and conventions.
   realistic failure or edge case per piece of new logic.
 - **Risks and edge cases** - only real ones for this change.
 - **Out of scope** - what not to touch.
+- **Assumptions** - every decision you made because the ticket does not say,
+  one line each: `<decision> - <alternative you rejected> - <why>`.
+  Write `none` if the ticket fully determines the plan.
 - **Side findings** - see below.
 
 Prefer the simplest design that fits the existing code; no speculative
 abstractions. Say *why* when a choice is non-obvious.
 
-If the ticket is too ambiguous to plan responsibly (conflicting requirements,
-missing key decision), do not guess: list the specific questions instead of a
-plan and end with `PLANNING BLOCKED`.
+If the readiness check finds a gap you must not assume (see above), do not
+plan: list each blocking question with why it matters and the options you
+see, and end with `PLANNING BLOCKED`.
 
 ## Side findings
 Report bugs you notice outside the ticket's scope: wrong behaviour,
