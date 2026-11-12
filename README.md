@@ -24,20 +24,27 @@ orchestrator (primary)                          subagents
 
 ```
 .opencode/
+  AGENTS.md                global rules (pipeline, git, Jira) for every project
   agents/orchestrator.md   primary agent: Jira, git, PR; delegates the rest
   agents/planner.md        ticket brief -> plan
   agents/implementer.md    plan -> code + tests, never commits
   agents/reviewer.md       diff vs. plan and acceptance criteria -> PASS / FAIL
   commands/ticket.md       /ticket <KEY>
+  commands/jira-tickets.md /jira-tickets <plan-file> - create epic + tickets from a plan
+  tools/jira.ts            jira_get, jira_search, jira_create, jira_link, jira_transition, ...
+  lib/jira-core.ts         Jira REST client, Markdown <-> Jira document format
   tools/pr.ts              pr_create tool (opencode wrapper)
   lib/pr-core.mts          GitHub + Bitbucket REST client (no gh CLI needed)
-  opencode.jsonc           pr_write: ask
+  opencode.jsonc           jira_write: ask, pr_write: ask
 tests/pr-core.test.ts      unit tests for the PR client
 scripts/                   logic behind the Makefile targets
 Makefile                   entry point: make install / doctor / init / ticket
 ```
 
-The Jira tools (`jira_get`, `jira_transition`, `jira_comment`, ...) live in the global config at `~/.config/opencode/tools/jira.ts`.
+The template is self-contained: cloning the repo and running `make install` gives the full setup on a new machine.
+
+> **Note:** while `OPENCODE_CONFIG_DIR` is set, opencode loads `.opencode/AGENTS.md` from this template instead of `~/.config/opencode/AGENTS.md`.
+> Keep all global rules in the template's `AGENTS.md`; `make doctor` warns if a global one is left over.
 
 ## Design choices
 
@@ -64,7 +71,7 @@ Run `make` to list all targets.
 | Target | What it does |
 | --- | --- |
 | `install` / `uninstall` | Adds or removes `export OPENCODE_CONFIG_DIR=<this template>` in `~/.bashrc` (`~/.zshrc` for zsh; `RC_FILE=...` to override). OpenCode merges it with the global config and the project's own `.opencode/`. |
-| `doctor` | Checks opencode, git, the global Jira tools, that the orchestrator loads with all its tools, and which credentials are set (never prints values). |
+| `doctor` | Checks opencode, git, that the orchestrator loads with all its tools, leftover global config, and which credentials are set (never prints values). |
 | `init PROJECT=...` | Detects base branch and check commands (uv, Poetry, npm) and appends a `## Pipeline` section to the project's `AGENTS.md`. Never overwrites an existing section; `DRY_RUN=1` previews, `JIRA_REVIEW_STATUS=...` sets the Jira status. |
 | `ticket PROJECT=... TICKET=...` | Opens the OpenCode TUI in the project with the orchestrator running the ticket. Works without `install`. |
 | `test` | Runs the unit tests of the PR client. |
@@ -76,6 +83,7 @@ Export them in the shell that starts OpenCode:
 | Variable | For |
 | --- | --- |
 | `JIRA_EMAIL`, `JIRA_API_TOKEN` | Jira tools |
+| `JIRA_BASE_URL` (optional) | Jira instance, e.g. `https://your-org.atlassian.net`; defaults to the URL in `lib/jira-core.ts` |
 | `GITHUB_TOKEN` (or `GH_TOKEN`) | GitHub PRs - fine-grained token, "Pull requests: read and write" |
 | `BITBUCKET_EMAIL`, `BITBUCKET_API_TOKEN` | Bitbucket PRs - Atlassian API token with `read:pullrequest:bitbucket` and `write:pullrequest:bitbucket` |
 

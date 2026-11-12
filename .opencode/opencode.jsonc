@@ -1,6 +1,9 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "permission": {
+    // tools/jira.ts: reads run freely, every write (create, update, link,
+    // comment, transition) asks for approval.
+    "jira_write": "ask",
     // tools/pr.ts asks before opening a pull request.
     "pr_write": "ask"
   }

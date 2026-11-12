@@ -28,10 +28,12 @@ elif [[ -n "${OPENCODE_CONFIG_DIR:-}" ]]; then
 else
   warn "OPENCODE_CONFIG_DIR not set: run 'make install' to use /ticket everywhere ('make ticket' works without it)"
 fi
-if [[ -f "$HOME/.config/opencode/tools/jira.ts" ]]; then
-  ok "global Jira tools found"
-else
-  fail "global Jira tools missing (~/.config/opencode/tools/jira.ts)"
+global="$HOME/.config/opencode"
+if [[ -f "$global/tools/jira.ts" ]]; then
+  warn "old global Jira tools in $global/tools/jira.ts duplicate the template's - remove them"
+fi
+if [[ -f "$global/AGENTS.md" ]]; then
+  warn "$global/AGENTS.md is ignored while OPENCODE_CONFIG_DIR is set - move its rules to $dir/AGENTS.md"
 fi
 if command -v opencode >/dev/null; then
   resolved="$(cd "$dir/.." && OPENCODE_CONFIG_DIR="$dir" timeout 60 opencode debug agent orchestrator 2>/dev/null)"
@@ -44,6 +46,7 @@ fi
 
 echo "Credentials"
 if is_set JIRA_EMAIL && is_set JIRA_API_TOKEN; then ok "Jira (JIRA_EMAIL, JIRA_API_TOKEN)"; else fail "Jira: export JIRA_EMAIL and JIRA_API_TOKEN"; fi
+if is_set JIRA_BASE_URL; then ok "Jira instance: $JIRA_BASE_URL"; else ok "Jira instance: default from lib/jira-core.ts ($(grep -oP 'DEFAULT_BASE_URL = "\K[^"]+' "$dir/lib/jira-core.ts"))"; fi
 if is_set GITHUB_TOKEN || is_set GH_TOKEN; then ok "GitHub (GITHUB_TOKEN / GH_TOKEN)"; else warn "GitHub: GITHUB_TOKEN not set (needed for GitHub repos)"; fi
 if is_set BITBUCKET_EMAIL && is_set BITBUCKET_API_TOKEN; then ok "Bitbucket (BITBUCKET_EMAIL, BITBUCKET_API_TOKEN)"; else warn "Bitbucket: BITBUCKET_EMAIL / BITBUCKET_API_TOKEN not set (needed for Bitbucket repos)"; fi
 
