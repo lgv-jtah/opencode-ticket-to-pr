@@ -1,0 +1,6 @@
+# Managed by opencode (auto-installed plugin dependencies)
+.opencode/node_modules/
+.opencode/package.json
+.opencode/package-lock.json
+.opencode/bun.lock
+.opencode/.gitignore
