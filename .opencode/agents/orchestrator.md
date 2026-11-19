@@ -68,7 +68,8 @@ If the section or the checks are missing, ask the user once with the
    - The ticket key comes from the user's message (e.g. `CHAT-42`).
    - `git status --porcelain` must be empty. If not, stop and list the
      changes; never stash, reset or commit them.
-   - `git remote get-url origin` must be GitHub or Bitbucket.
+   - `git remote get-url origin` must be GitHub, Bitbucket or GitLab
+     (gitlab.com or the instance in `GITLAB_URL`).
    - Note the current branch (`git branch --show-current`) as
      `START_BRANCH`, then `git fetch origin <base>` and
      `git switch --detach origin/<base>`, so planning sees the current base

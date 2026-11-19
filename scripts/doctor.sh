@@ -49,6 +49,8 @@ if is_set JIRA_EMAIL && is_set JIRA_API_TOKEN; then ok "Jira (JIRA_EMAIL, JIRA_A
 if is_set JIRA_BASE_URL; then ok "Jira instance: $JIRA_BASE_URL"; else ok "Jira instance: default from lib/jira-core.ts ($(grep -oP 'DEFAULT_BASE_URL = "\K[^"]+' "$dir/lib/jira-core.ts"))"; fi
 if is_set GITHUB_TOKEN || is_set GH_TOKEN; then ok "GitHub (GITHUB_TOKEN / GH_TOKEN)"; else warn "GitHub: GITHUB_TOKEN not set (needed for GitHub repos)"; fi
 if is_set BITBUCKET_EMAIL && is_set BITBUCKET_API_TOKEN; then ok "Bitbucket (BITBUCKET_EMAIL, BITBUCKET_API_TOKEN)"; else warn "Bitbucket: BITBUCKET_EMAIL / BITBUCKET_API_TOKEN not set (needed for Bitbucket repos)"; fi
+if is_set GITLAB_TOKEN; then ok "GitLab (GITLAB_TOKEN)"; else warn "GitLab: GITLAB_TOKEN not set (needed for GitLab repos)"; fi
+if is_set GITLAB_URL; then ok "GitLab instance: $GITLAB_URL (plus gitlab.com)"; else ok "GitLab instance: gitlab.com only (set GITLAB_URL for a self-hosted one)"; fi
 
 echo
 if [[ $failed -eq 0 ]]; then echo "All required checks passed."; else echo "Some required checks failed."; fi

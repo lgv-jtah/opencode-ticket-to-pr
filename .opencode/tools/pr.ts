@@ -1,8 +1,8 @@
 /**
  * Pull request tool for opencode: `pr_create`.
  *
- * Detects GitHub or Bitbucket from the git remote and opens a PR through the
- * host's REST API (no `gh` CLI needed). Asks for approval via the
+ * Detects GitHub, Bitbucket or GitLab from the git remote and opens a PR
+ * (merge request on GitLab) through the host's REST API (no `gh` / `glab` CLI needed). Asks for approval via the
  * "pr_write" permission. See lib/pr-core.mts for the credentials it needs.
  */
 import { execFile } from "node:child_process"
@@ -19,7 +19,7 @@ async function git(cwd: string, ...args: string[]): Promise<string> {
 
 export const create = tool({
   description:
-    "Open a pull request on GitHub or Bitbucket (detected from the git remote) from the current branch. " +
+    "Open a pull request on GitHub or Bitbucket, or a merge request on GitLab (detected from the git remote), from the current branch. " +
     "The branch must already be pushed. Returns the PR URL; if an open PR for the branch exists, returns that one. " +
     "Asks the user for approval.",
   args: {
@@ -34,6 +34,8 @@ export const create = tool({
     const head = args.head ?? (await git(cwd, "branch", "--show-current"))
     if (!head) throw new Error("Detached HEAD: pass 'head' explicitly or switch to the feature branch.")
     const ref = parseRemote(await git(cwd, "remote", "get-url", args.remote ?? "origin"))
+    const kind = ref.host === "gitlab" ? "MR" : "PR"
+    const id = (n: number) => (ref.host === "gitlab" ? `!${n}` : `#${n}`)
 
     await ctx.ask({
       permission: "pr_write",
@@ -43,7 +45,7 @@ export const create = tool({
     })
 
     const pr = await createPullRequest(ref, { title: args.title, body: args.body, head, base: args.base }, { signal: ctx.abort })
-    ctx.metadata({ title: `${pr.existed ? "Existing" : "Opened"} PR #${pr.number}` })
-    return `${pr.existed ? "An open PR already existed" : "Opened PR"} #${pr.number} (${ref.host}): ${pr.url}`
+    ctx.metadata({ title: `${pr.existed ? "Existing" : "Opened"} ${kind} ${id(pr.number)}` })
+    return `${pr.existed ? `An open ${kind} already existed` : `Opened ${kind}`} ${id(pr.number)} (${ref.host}): ${pr.url}`
   },
 })

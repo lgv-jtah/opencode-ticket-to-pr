@@ -1,5 +1,6 @@
 /**
- * Host-agnostic pull request creation for GitHub and Bitbucket Cloud.
+ * Host-agnostic pull request creation for GitHub, Bitbucket Cloud and GitLab
+ * (gitlab.com or one self-hosted instance). GitLab calls them merge requests.
  *
  * Kept free of opencode imports so it can be unit-tested with plain Node
  * (`node --test "tests/*.test.ts"`). The opencode tool wrapper lives in tools/pr.ts.
@@ -8,16 +9,21 @@
  *   GitHub:    GITHUB_TOKEN (or GH_TOKEN) - fine-grained token, "Pull requests: read and write"
  *   Bitbucket: BITBUCKET_EMAIL + BITBUCKET_API_TOKEN - Atlassian API token with the
  *              scopes "read:pullrequest:bitbucket" and "write:pullrequest:bitbucket"
+ *   GitLab:    GITLAB_TOKEN - personal, group or project access token with the "api" scope
+ *              GITLAB_URL (optional) - self-hosted instance, e.g. https://gitlab.example.com;
+ *              remotes on gitlab.com are always recognised
  */
 
-export type Host = "github" | "bitbucket"
+export type Host = "github" | "bitbucket" | "gitlab"
 
 export interface RepoRef {
   host: Host
-  /** GitHub owner or Bitbucket workspace. */
+  /** GitHub owner, Bitbucket workspace or GitLab namespace (may contain '/' for subgroups). */
   owner: string
   /** Repository name / slug. */
   repo: string
+  /** GitLab only: instance URL without trailing slash, e.g. https://gitlab.com. */
+  instance?: string
 }
 
 export interface PullRequestInput {
@@ -39,16 +45,66 @@ export interface PullRequestResult {
 type Env = Record<string, string | undefined>
 type Fetch = typeof fetch
 
-const REMOTE_RE =
-  /^(?:[a-z][a-z0-9+.-]*:\/\/)?(?:[^@/]+@)?(github\.com|bitbucket\.org)[:/]([^/]+)\/([^/]+?)(?:\.git)?\/?$/i
+const GITLAB_COM = "https://gitlab.com"
 
-/** Parse a git remote URL (SSH, scp-like or HTTPS) into host, owner and repo. */
-export function parseRemote(url: string): RepoRef {
-  const m = REMOTE_RE.exec(url.trim())
-  if (!m) {
-    throw new Error(`Unsupported git remote '${url}': only github.com and bitbucket.org are supported.`)
+/** Split a git remote URL (scheme://[user@]host[:port]/path or scp-like [user@]host:path) into hostname and path. */
+function splitRemote(url: string): { hostname: string; path: string } | null {
+  const u = url.trim()
+  const scheme = /^[a-z][a-z0-9+.-]*:\/\/(?:[^@/]+@)?([^/:]+)(?::\d+)?\/(.+)$/i.exec(u)
+  const scp = scheme ? null : /^(?:[^@/]+@)?([^/:]+):(?!\/)(.+)$/.exec(u)
+  const m = scheme ?? scp
+  if (!m) return null
+  const path = m[2].replace(/\/+$/, "").replace(/\.git$/i, "")
+  return { hostname: m[1].toLowerCase(), path }
+}
+
+/** GitLab instances to recognise: gitlab.com plus GITLAB_URL, if set. */
+function gitlabInstances(env: Env): URL[] {
+  const out = [new URL(GITLAB_COM)]
+  const custom = env.GITLAB_URL?.trim()
+  if (custom) {
+    let u: URL
+    try {
+      u = new URL(custom)
+    } catch {
+      throw new Error(`GITLAB_URL '${custom}' is not a valid URL (expected e.g. https://gitlab.example.com).`)
+    }
+    if (u.hostname !== "gitlab.com") out.unshift(u)
   }
-  return { host: m[1].toLowerCase() === "github.com" ? "github" : "bitbucket", owner: m[2], repo: m[3] }
+  return out
+}
+
+/**
+ * Parse a git remote URL (SSH, scp-like or HTTPS) into host, owner and repo.
+ * GitHub and Bitbucket are detected by hostname; GitLab by gitlab.com or the hostname of GITLAB_URL.
+ */
+export function parseRemote(url: string, env: Env = process.env): RepoRef {
+  const r = splitRemote(url)
+  const unsupported = () =>
+    new Error(
+      `Unsupported git remote '${url.trim()}': expected github.com, bitbucket.org, gitlab.com` +
+        ` or the GitLab instance in GITLAB_URL${env.GITLAB_URL ? ` (${env.GITLAB_URL})` : " (not set)"}.`,
+    )
+  if (!r) throw unsupported()
+  const parts = r.path.split("/").filter(Boolean)
+
+  if (r.hostname === "github.com" || r.hostname === "bitbucket.org") {
+    if (parts.length !== 2) throw unsupported()
+    return { host: r.hostname === "github.com" ? "github" : "bitbucket", owner: parts[0], repo: parts[1] }
+  }
+
+  const gl = gitlabInstances(env).find((i) => i.hostname === r.hostname)
+  if (!gl) throw unsupported()
+  // A self-hosted instance may live under a path prefix (https://example.com/gitlab); HTTPS remotes then include it.
+  const prefix = gl.pathname.split("/").filter(Boolean)
+  const rest = prefix.every((p, i) => parts[i] === p) ? parts.slice(prefix.length) : parts
+  if (rest.length < 2) throw unsupported()
+  return {
+    host: "gitlab",
+    owner: rest.slice(0, -1).join("/"),
+    repo: rest[rest.length - 1],
+    instance: (gl.origin + gl.pathname).replace(/\/+$/, ""),
+  }
 }
 
 /** Create a PR, or return the already open PR for the same head branch (idempotent). */
@@ -59,7 +115,7 @@ export async function createPullRequest(
 ): Promise<PullRequestResult> {
   if (input.head === input.base) throw new Error(`Head and base branch are both '${input.base}'.`)
   const env = opts.env ?? process.env
-  const client = ref.host === "github" ? github(ref, env) : bitbucket(ref, env)
+  const client = { github, bitbucket, gitlab }[ref.host](ref, env)
   const call = (method: string, path: string, body?: unknown) =>
     request(client, method, path, body, opts.fetchImpl ?? fetch, opts.signal)
 
@@ -146,6 +202,33 @@ function bitbucket(ref: RepoRef, env: Env): Client {
   }
 }
 
+function gitlab(ref: RepoRef, env: Env): Client {
+  const token = env.GITLAB_TOKEN
+  if (!token) throw new Error("GitLab credentials missing: export GITLAB_TOKEN and restart opencode.")
+  // GitLab addresses a project by its URL-encoded full path, e.g. group%2Fsub%2Frepo.
+  const project = `/api/v4/projects/${enc(`${ref.owner}/${ref.repo}`)}`
+  return {
+    base: ref.instance ?? GITLAB_COM,
+    secret: token,
+    headers: { "PRIVATE-TOKEN": token, Accept: "application/json" },
+    async findOpen(call, input) {
+      const q = new URLSearchParams({ source_branch: input.head, target_branch: input.base, state: "opened" })
+      const mrs: any[] = await call("GET", `${project}/merge_requests?${q}`)
+      return mrs.length ? { url: mrs[0].web_url, number: mrs[0].iid } : null
+    },
+    async create(call, input) {
+      const mr = await call("POST", `${project}/merge_requests`, {
+        title: input.title,
+        description: input.body,
+        source_branch: input.head,
+        target_branch: input.base,
+        remove_source_branch: true,
+      })
+      return { url: mr.web_url, number: mr.iid }
+    },
+  }
+}
+
 // ---------------------------------------------------------------------------
 // HTTP
 // ---------------------------------------------------------------------------
@@ -168,13 +251,17 @@ async function request(client: Client, method: string, path: string, body: unkno
   return raw ? JSON.parse(raw) : {}
 }
 
-/** Extract the human-readable message from GitHub / Bitbucket error bodies. */
+/** Extract the human-readable message from GitHub / Bitbucket / GitLab error bodies. */
 function errorDetail(raw: string): string {
   try {
     const j = JSON.parse(raw)
     const parts = [
-      j.message, // GitHub
-      ...(j.errors ?? []).map((e: any) => e.message ?? JSON.stringify(e)), // GitHub validation errors
+      // GitHub and GitLab use a string; GitLab also sends a list or a {field: [messages]} object.
+      typeof j.message === "string" ? j.message : undefined,
+      Array.isArray(j.message) ? j.message.join("; ") : undefined,
+      j.message && typeof j.message === "object" && !Array.isArray(j.message) ? JSON.stringify(j.message) : undefined,
+      ...(Array.isArray(j.errors) ? j.errors : []).map((e: any) => e.message ?? JSON.stringify(e)), // GitHub validation errors
+      typeof j.error === "string" ? j.error : undefined, // GitLab (e.g. 401, 404)
       j.error?.message, // Bitbucket
       j.error?.detail ? JSON.stringify(j.error.detail) : undefined,
     ].filter(Boolean)

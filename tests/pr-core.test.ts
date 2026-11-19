@@ -3,7 +3,7 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 import { createPullRequest, parseRemote } from "../.opencode/lib/pr-core.mts"
 
-type Call = { method: string; url: string; body?: any; auth?: string }
+type Call = { method: string; url: string; body?: any; auth?: string; headers: Record<string, string> }
 
 /** Fake fetch that records calls and replies with queued responses. */
 function fakeFetch(replies: Array<{ status: number; body: unknown }>) {
@@ -15,6 +15,7 @@ function fakeFetch(replies: Array<{ status: number; body: unknown }>) {
       url,
       body: init.body ? JSON.parse(init.body as string) : undefined,
       auth: headers.Authorization,
+      headers,
     })
     const r = replies.shift()
     if (!r) throw new Error(`unexpected request ${init.method} ${url}`)
@@ -40,8 +41,29 @@ test("parseRemote handles the remote styles used in practice", () => {
   assert.deepEqual(parseRemote("https://github.com/o/r.git/\n"), { host: "github", owner: "o", repo: "r" })
 })
 
-test("parseRemote rejects unsupported hosts", () => {
-  assert.throws(() => parseRemote("git@gitlab.com:o/r.git"), /Unsupported git remote/)
+test("parseRemote rejects unsupported hosts and malformed paths", () => {
+  assert.throws(() => parseRemote("git@gitea.example.com:o/r.git", {}), /Unsupported git remote/)
+  assert.throws(() => parseRemote("git@gitlab.example.com:o/r.git", {}), /GITLAB_URL \(not set\)/)
+  assert.throws(() => parseRemote("git@github.com:o/sub/r.git", {}), /Unsupported git remote/)
+  assert.throws(() => parseRemote("https://gitlab.com/onlyrepo.git", {}), /Unsupported git remote/)
+})
+
+test("parseRemote recognises gitlab.com with nested groups", () => {
+  assert.deepEqual(parseRemote("git@gitlab.com:group/sub/r.git", {}), {
+    host: "gitlab",
+    owner: "group/sub",
+    repo: "r",
+    instance: "https://gitlab.com",
+  })
+  assert.deepEqual(parseRemote("https://gitlab.com/o/r", {}), { host: "gitlab", owner: "o", repo: "r", instance: "https://gitlab.com" })
+})
+
+test("parseRemote recognises the self-hosted GitLab in GITLAB_URL, incl. SSH port and path prefix", () => {
+  const env = { GITLAB_URL: "https://git.example.com/gitlab/" }
+  const want = { host: "gitlab", owner: "team", repo: "app", instance: "https://git.example.com/gitlab" }
+  assert.deepEqual(parseRemote("ssh://git@git.example.com:2222/team/app.git", env), want)
+  assert.deepEqual(parseRemote("https://me@git.example.com/gitlab/team/app.git", env), want)
+  assert.throws(() => parseRemote("git@x:o/r", { GITLAB_URL: "not a url" }), /GITLAB_URL 'not a url' is not a valid URL/)
 })
 
 test("github: creates a PR when none is open", async () => {
@@ -83,6 +105,47 @@ test("bitbucket: creates a PR with source and destination branches", async () =>
   assert.equal(pr.number, 4)
   assert.deepEqual(f.calls[1].body.source, { branch: { name: input.head } })
   assert.deepEqual(f.calls[1].body.destination, { branch: { name: "dev" } })
+})
+
+test("gitlab: creates an MR on the instance, addressing the project by its encoded path", async () => {
+  const f = fakeFetch([
+    { status: 200, body: [] },
+    { status: 201, body: { iid: 12, web_url: "https://git.example.com/team/sub/app/-/merge_requests/12" } },
+  ])
+  const ref = { host: "gitlab" as const, owner: "team/sub", repo: "app", instance: "https://git.example.com" }
+  const pr = await createPullRequest(ref, input, { env: { GITLAB_TOKEN: "glpat-x" }, fetchImpl: f.impl })
+  assert.deepEqual(pr, { url: "https://git.example.com/team/sub/app/-/merge_requests/12", number: 12, existed: false })
+  assert.equal(
+    f.calls[0].url,
+    "https://git.example.com/api/v4/projects/team%2Fsub%2Fapp/merge_requests?source_branch=feature%2FCHAT-1-add-y&target_branch=main&state=opened",
+  )
+  assert.equal(f.calls[1].method, "POST")
+  assert.deepEqual(f.calls[1].body, {
+    title: input.title,
+    description: input.body,
+    source_branch: input.head,
+    target_branch: "main",
+    remove_source_branch: true,
+  })
+  assert.equal(f.calls[1].headers["PRIVATE-TOKEN"], "glpat-x")
+})
+
+test("gitlab: returns the existing open MR and surfaces list-style error messages", async () => {
+  const ref = { host: "gitlab" as const, owner: "o", repo: "r", instance: "https://gitlab.com" }
+  const found = fakeFetch([{ status: 200, body: [{ iid: 5, web_url: "https://gitlab.com/o/r/-/merge_requests/5" }] }])
+  const pr = await createPullRequest(ref, input, { env: { GITLAB_TOKEN: "glpat-x" }, fetchImpl: found.impl })
+  assert.deepEqual(pr, { url: "https://gitlab.com/o/r/-/merge_requests/5", number: 5, existed: true })
+  assert.equal(found.calls.length, 1)
+
+  const failing = fakeFetch([
+    { status: 200, body: [] },
+    { status: 409, body: { message: ["Another open merge request already exists for this source branch: !5"] } },
+  ])
+  await assert.rejects(
+    createPullRequest(ref, input, { env: { GITLAB_TOKEN: "glpat-x" }, fetchImpl: failing.impl }),
+    /HTTP 409 - Another open merge request already exists/,
+  )
+  await assert.rejects(createPullRequest(ref, input, { env: {}, fetchImpl: fakeFetch([]).impl }), /export GITLAB_TOKEN/)
 })
 
 test("API errors surface the host's message and never leak the token", async () => {

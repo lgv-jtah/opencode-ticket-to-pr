@@ -1,6 +1,6 @@
 # OpenCode ticket-to-PR pipeline
 
-A small OpenCode template that takes a Jira ticket and ends with a reviewed pull request on GitHub or Bitbucket, plus the ticket moved to review.
+A small OpenCode template that takes a Jira ticket and ends with a reviewed pull request on GitHub, Bitbucket or GitLab (merge request), plus the ticket moved to review.
 
 ```
 /ticket CHAT-42
@@ -18,7 +18,7 @@ orchestrator (primary)                          subagents
   7 git commit (Conventional Commit, Refs KEY)
   8 side findings -> you pick -> Bug tickets    [approval]
   9 git push -u origin <branch>                 [approval]
- 10 pr_create (GitHub or Bitbucket)             [approval]
+ 10 pr_create (GitHub, Bitbucket or GitLab)     [approval]
  11 jira_transition -> review, jira_comment PR  [approval]
 ```
 
@@ -36,7 +36,7 @@ orchestrator (primary)                          subagents
   tools/jira.ts            jira_get, jira_search, jira_create, jira_link, jira_transition, ...
   lib/jira-core.ts         Jira REST client, Markdown <-> Jira document format
   tools/pr.ts              pr_create tool (opencode wrapper)
-  lib/pr-core.mts          GitHub + Bitbucket REST client (no gh CLI needed)
+  lib/pr-core.mts          GitHub + Bitbucket + GitLab REST client (no gh / glab CLI needed)
   opencode.jsonc           jira_write: ask, pr_write: ask
 tests/pr-core.test.ts      unit tests for the PR client
 scripts/                   logic behind the Makefile targets
@@ -89,6 +89,8 @@ Export them in the shell that starts OpenCode:
 | `JIRA_BASE_URL` (optional) | Jira instance, e.g. `https://your-org.atlassian.net`; defaults to the URL in `lib/jira-core.ts` |
 | `GITHUB_TOKEN` (or `GH_TOKEN`) | GitHub PRs - fine-grained token, "Pull requests: read and write" |
 | `BITBUCKET_EMAIL`, `BITBUCKET_API_TOKEN` | Bitbucket PRs - Atlassian API token with `read:pullrequest:bitbucket` and `write:pullrequest:bitbucket` |
+| `GITLAB_TOKEN` | GitLab merge requests - personal, group or project access token with the `api` scope (Developer role or higher) |
+| `GITLAB_URL` (optional) | Self-hosted GitLab, e.g. `https://gitlab.example.com`; remotes on its hostname are treated as GitLab. `gitlab.com` always works without it |
 
 ### Project settings
 
