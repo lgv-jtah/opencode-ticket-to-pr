@@ -9,10 +9,11 @@ PROJECT ?=
 TICKET  ?=
 RC_FILE ?=
 DRY_RUN ?=
+FORCE   ?=
 JIRA_REVIEW_STATUS ?= In Review
 
 .DEFAULT_GOAL := help
-.PHONY: help install uninstall doctor init ticket test
+.PHONY: help install uninstall doctor init vendor ticket test
 
 help: ## Show this help
 	@echo "OpenCode ticket-to-PR pipeline"
@@ -38,6 +39,12 @@ doctor: ## Check opencode, credentials and that the template loads
 
 init: ## Add the Pipeline section (base branch, checks) to PROJECT's AGENTS.md (DRY_RUN=1 to preview)
 	@test -n "$(PROJECT)" || { echo "Usage: make init PROJECT=<path-to-repo> [DRY_RUN=1] [JIRA_REVIEW_STATUS='In Review']"; exit 2; }
+	@DRY_RUN="$(DRY_RUN)" JIRA_REVIEW_STATUS="$(JIRA_REVIEW_STATUS)" "$(SCRIPTS)/init-project.sh" "$(PROJECT)"
+
+vendor: ## Copy the pipeline into PROJECT's own .opencode/ (no global setup needed; re-run to update; DRY_RUN=1, FORCE=1)
+	@test -n "$(PROJECT)" || { echo "Usage: make vendor PROJECT=<path-to-repo> [DRY_RUN=1] [FORCE=1]"; exit 2; }
+	@DRY_RUN="$(DRY_RUN)" FORCE="$(FORCE)" "$(SCRIPTS)/vendor.sh" "$(TEMPLATE_DIR)" "$(PROJECT)"
+	@echo
 	@DRY_RUN="$(DRY_RUN)" JIRA_REVIEW_STATUS="$(JIRA_REVIEW_STATUS)" "$(SCRIPTS)/init-project.sh" "$(PROJECT)"
 
 ticket: ## Start the pipeline for TICKET in PROJECT (opens the OpenCode TUI)

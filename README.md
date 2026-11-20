@@ -71,10 +71,30 @@ make ticket PROJECT=~/projects/my-repo TICKET=CHAT-42    # run the pipeline
 
 Run `make` to list all targets.
 
+### Only for one project
+
+To use the pipeline in a single project without any global setup, copy it into the project:
+
+```bash
+make vendor PROJECT=~/projects/my-repo    # writes my-repo/.opencode/ and the Pipeline section
+```
+
+Commit the project's `.opencode/` and `AGENTS.md`.
+From then on, plain `opencode` in that project has `/ticket` and `/jira-tickets`, for everyone who clones it.
+Teammates only need opencode and the credentials below, not this template.
+
+- The template's global rules are copied to `.opencode/pipeline-rules.md` and loaded via `instructions` in `.opencode/opencode.jsonc`.
+- `.opencode/pipeline.manifest` records the template version and a checksum per file.
+- Re-run `make vendor` to update: unchanged files are replaced, files dropped from the template are removed.
+- If a vendored file was edited in the project, or a file with the same name already existed, nothing is written and the conflicts are listed; `FORCE=1` overwrites them, `DRY_RUN=1` only previews.
+- Keep project-specific instructions in the project's `AGENTS.md`, not in the vendored files.
+- If the project already has its own `.opencode/opencode.jsonc`, that is reported as a conflict too; move its settings to `.opencode/opencode.json` or a root `opencode.json`, which opencode merges with it.
+
 | Target | What it does |
 | --- | --- |
 | `install` / `uninstall` | Adds or removes `export OPENCODE_CONFIG_DIR=<this template>` in `~/.bashrc` (`~/.zshrc` for zsh; `RC_FILE=...` to override). OpenCode merges it with the global config and the project's own `.opencode/`. |
 | `doctor` | Checks opencode, git, that the orchestrator loads with all its tools, leftover global config, and which credentials are set (never prints values). |
+| `vendor PROJECT=...` | Copies the pipeline into the project's own `.opencode/` and runs `init`, so it works without `install` (see [Only for one project](#only-for-one-project)). Re-run to update; `DRY_RUN=1` previews, `FORCE=1` overwrites local edits. |
 | `init PROJECT=...` | Detects base branch and check commands (uv, Poetry, npm) and appends a `## Pipeline` section to the project's `AGENTS.md`. Never overwrites an existing section; `DRY_RUN=1` previews, `JIRA_REVIEW_STATUS=...` sets the Jira status. |
 | `ticket PROJECT=... TICKET=...` | Opens the OpenCode TUI in the project with the orchestrator running the ticket. Works without `install`. |
 | `test` | Runs the unit tests of the PR client. |
